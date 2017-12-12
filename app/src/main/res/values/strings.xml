@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ScreenCast</string>
+    <string name="service_stream">Stream…</string>
+    <string name="service_press_stop">Press stop to end stream</string>
+    <string name="service_stop">Stop</string>
+    <string name="start">Start</string>
+</resources>
