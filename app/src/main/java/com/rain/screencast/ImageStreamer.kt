@@ -14,6 +14,7 @@ import android.os.HandlerThread
 import android.os.Process
 import android.util.Base64
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
 import io.reactivex.Observable
@@ -24,24 +25,23 @@ import io.socket.client.Socket
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
-@Suppress("JoinDeclarationAndAssignment")
 class ImageStreamer(context: Context, private val mediaProjection: MediaProjection) {
-    private val windowManager: WindowManager
+    private val windowManager: WindowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val handlerThread: HandlerThread = HandlerThread(ImageStreamer::class.java.simpleName, Process.THREAD_PRIORITY_BACKGROUND)
     private val lock = Any()
-    private val handlerThread: HandlerThread
     private val handler: Handler
     private var socket: Socket? = null
     private var disposable: Disposable? = null
     private val imageReader: ImageReader
     private var virtualDisplay: VirtualDisplay? = null
-    @Volatile private var reusableBitmap: Bitmap? = null
+    @Volatile
+    private var reusableBitmap: Bitmap? = null
     private val resultJpegStream = ByteArrayOutputStream()
     private val screenSize: Point
     private val displayMetrics: DisplayMetrics
+    private val tag = "ImageStreamer"
 
     init {
-        windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        handlerThread = HandlerThread(ImageStreamer::class.java.simpleName, Process.THREAD_PRIORITY_BACKGROUND)
         handlerThread.start()
         handler = Handler(handlerThread.looper)
         val defaultDisplay = windowManager.defaultDisplay
@@ -56,19 +56,25 @@ class ImageStreamer(context: Context, private val mediaProjection: MediaProjecti
     fun bind() {
         disposable = Observable.interval(16, TimeUnit.MILLISECONDS)
                 .doOnSubscribe { initSocket() }
-                .map { _ -> windowManager.defaultDisplay.rotation }
+                .map { windowManager.defaultDisplay.rotation }
                 .map { rotation -> rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180 }
                 .distinctUntilChanged()
                 .skip(1)
                 .subscribeOn(Schedulers.computation())
                 .observeOn(Schedulers.computation())
-                .subscribe { _ -> capture() }
+                .subscribe { capture() }
     }
 
     private fun initSocket() {
-        socket = IO.socket("http://192.168.1.108:3000")
+        socket = IO.socket("http://10.0.2.2:3000")
         socket?.connect()
-        capture()
+        socket?.once(Socket.EVENT_CONNECT) {
+            Log.d(tag, "connected")
+            capture()
+        }
+        socket?.on(Socket.EVENT_CONNECT_ERROR) {
+            Log.d(tag, "error: $it")
+        }
     }
 
     private fun capture() {
@@ -102,7 +108,7 @@ class ImageStreamer(context: Context, private val mediaProjection: MediaProjecti
                 if (width > image.width) {
                     if (null == reusableBitmap) reusableBitmap = Bitmap.createBitmap(width, image.height, Bitmap.Config.ARGB_8888)
                     reusableBitmap?.copyPixelsFromBuffer(plane.buffer)
-                    cleanBitmap = Bitmap.createBitmap(reusableBitmap, 0, 0, image.width, image.height)
+                    cleanBitmap = Bitmap.createBitmap(reusableBitmap!!, 0, 0, image.width, image.height)
                 } else {
                     cleanBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
                     cleanBitmap.copyPixelsFromBuffer(plane.buffer)

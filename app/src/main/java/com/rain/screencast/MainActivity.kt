@@ -5,9 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import android.widget.Button
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import io.reactivex.disposables.Disposable
 
 class MainActivity : AppCompatActivity() {
@@ -42,7 +43,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            startService(ScreenCastService.getIntent(applicationContext, data))
+            ContextCompat.startForegroundService(applicationContext, ScreenCastService.getIntent(applicationContext, data))
         }
     }
 
@@ -51,15 +52,15 @@ class MainActivity : AppCompatActivity() {
         val action = intent.getStringExtra(EXTRA_DATA) ?: return
         when (action) {
             ACTION_STOP_STREAM -> {
-                startService(ScreenCastService.getIntentStop(applicationContext))
+                stopService(ScreenCastService.getIntent(applicationContext))
             }
         }
     }
 
     companion object {
-        private val REQUEST_CODE_SCREEN_CAPTURE = 10001
+        private const val REQUEST_CODE_SCREEN_CAPTURE = 10001
         const val ACTION_STOP_STREAM = "ACTION_STOP_STREAM"
-        private val EXTRA_DATA = "EXTRA_DATA"
+        private const val EXTRA_DATA = "EXTRA_DATA"
 
         fun getStartIntent(context: Context, action: String): Intent {
             return Intent(context, MainActivity::class.java)
